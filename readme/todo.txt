@@ -1,0 +1,3 @@
+communicate to spring-api by websocket
+netoyyer all front and unnessary libraries to reduce memory on heroku
+a small skikit-learn app
