@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 
 """
-Chat Server
-===========
-
-This simple application uses WebSockets to run a primitive chat server.
+==============
+Backend Server
+==============
 """
 
 import os
@@ -15,7 +14,8 @@ from flask import Flask, render_template
 from flask_sockets import Sockets
 
 REDIS_URL = os.environ['REDIS_URL']
-REDIS_CHAN = 'chat'
+REDIS_CHAN = 'channel'
+REDIS_JAVA_CHAN = 'java'
 
 app = Flask(__name__)
 app.debug = 'DEBUG' in os.environ
@@ -23,9 +23,9 @@ app.debug = 'DEBUG' in os.environ
 sockets = Sockets(app)
 redis = redis.from_url(REDIS_URL)
 
+logging.basicConfig(filename='app.log',level=logging.INFO)
 
-
-class ChatBackend(object):
+class WsBackend(object):
     """Interface for registering and updating WebSocket clients."""
 
     def __init__(self):
@@ -62,8 +62,8 @@ class ChatBackend(object):
         """Maintains Redis subscription in the background."""
         gevent.spawn(self.run)
 
-chats = ChatBackend()
-chats.start()
+backend = WsBackend()
+backend.start()
 
 
 @app.route('/')
@@ -72,7 +72,7 @@ def hello():
 
 @sockets.route('/submit')
 def inbox(ws):
-    """Receives incoming chat messages, inserts them into Redis."""
+    """Receives incoming messages, inserts them into Redis."""
     while not ws.closed:
         # Sleep to prevent *constant* context-switches.
         gevent.sleep(0.1)
@@ -84,12 +84,10 @@ def inbox(ws):
 
 @sockets.route('/receive')
 def outbox(ws):
-    """Sends outgoing chat messages, via `ChatBackend`."""
-    chats.register(ws)
+    """Sends outgoing messages, via `WsBackend`."""
+    backend.register(ws)
 
     while not ws.closed:
-        # Context switch while `ChatBackend.start` is running in the background.
+        # Context switch while `DataBackend.start` is running in the background.
         gevent.sleep(0.1)
-
-
 
