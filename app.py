@@ -85,7 +85,7 @@ def inbox(ws):
             app.logger.info(u'Inserting message: {}'.format(message))
             redis.publish(REDIS_CHAN, message)
             messageObject= json.loads(message)
-            redis.publish(REDIS_JAVA_CHAN, "hey java ! Here is my message : " + messageObject["text"])
+            redis.publish(REDIS_JAVA_CHAN, "Hey java ! Message from python : " + messageObject["text"])
 
 @sockets.route('/receive')
 def outbox(ws):
@@ -106,7 +106,7 @@ def inbox(ws):
 
         if message:
             app.logger.info(u'Incoming message from java: {}'.format(message))
-            redis.publish(REDIS_CHAN, message)
+            redis.publish(REDIS_CHAN, json.dumps({'handle' : 'java', 'text':message}))
             
 @sockets.route('/tojava')
 def outbox(ws):
