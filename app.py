@@ -8,6 +8,7 @@ Backend Server
 
 import os
 import logging
+import json
 import redis
 import gevent
 from flask import Flask, render_template
@@ -28,10 +29,10 @@ logging.basicConfig(filename='app.log',level=logging.INFO)
 class WsBackend(object):
     """Interface for registering and updating WebSocket clients."""
 
-    def __init__(self):
+    def __init__(self, channel):
         self.clients = list()
         self.pubsub = redis.pubsub()
-        self.pubsub.subscribe(REDIS_CHAN)
+        self.pubsub.subscribe(channel)
 
     def __iter_data(self):
         for message in self.pubsub.listen():
@@ -62,9 +63,11 @@ class WsBackend(object):
         """Maintains Redis subscription in the background."""
         gevent.spawn(self.run)
 
-backend = WsBackend()
+backend = WsBackend(REDIS_CHAN)
 backend.start()
 
+java = WsBackend(REDIS_JAVA_CHAN)
+java.start()
 
 @app.route('/')
 def hello():
@@ -81,6 +84,8 @@ def inbox(ws):
         if message:
             app.logger.info(u'Inserting message: {}'.format(message))
             redis.publish(REDIS_CHAN, message)
+            messageObject= json.loads(message)
+            redis.publish(REDIS_JAVA_CHAN, "hey java ! Here is my message : " + messageObject["text"])
 
 @sockets.route('/receive')
 def outbox(ws):
@@ -91,3 +96,23 @@ def outbox(ws):
         # Context switch while `DataBackend.start` is running in the background.
         gevent.sleep(0.1)
 
+@sockets.route('/java')
+def inbox(ws):
+    """Receives incoming messages from java, inserts them into Redis."""
+    while not ws.closed:
+        # Sleep to prevent *constant* context-switches.
+        gevent.sleep(0.1)
+        message = ws.receive()
+
+        if message:
+            app.logger.info(u'Incoming message from java: {}'.format(message))
+            redis.publish(REDIS_CHAN, message)
+            
+@sockets.route('/tojava')
+def outbox(ws):
+    """Sends outgoing messages, via `WsBackend`."""
+    java.register(ws)
+
+    while not ws.closed:
+        # Context switch while `DataBackend.start` is running in the background.
+        gevent.sleep(0.1)
